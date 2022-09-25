@@ -6,6 +6,7 @@ off remote data repositories.
 from typing import List
 
 import math as m
+from warnings import WarningMessage
 import numpy as np
 
 
@@ -18,9 +19,10 @@ class Point:
     points: List["Point"] = []
     remaining_points: List["Point"] = []
 
-    def __init__(self, x: float, y: float) -> None:
+    def __init__(self, x: float, y: float, extent: float=0) -> None:
         self.x: float = x
         self.y: float = y
+        self._extent: float = extent
         Point.points.append(self)
         Point.remaining_points.append(self)
 
@@ -52,7 +54,18 @@ class Point:
 
     def distance(self, point):
         return m.sqrt((self.x - point.x)**2 + (self.y - point.y)**2)
-
+    
+    @property
+    def extent(self):
+        return self._extent
+    
+    @extent.setter
+    def extent(self, value):
+        if value < 0:
+            raise WarningMessage("Source cannot have negative extent, \
+            setting extent to absolute of provided value")
+        self._extent = abs(value)
+        
 
 class Rectangle:
     rectangles: List["Rectangle"] = []
