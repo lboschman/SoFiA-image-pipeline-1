@@ -95,44 +95,41 @@ class Rectangle:
     def dy(self, value):
         self._dy = abs(value)
     
-    def deltaxy_accomodating(self, point: Point):
+    def deltaxy_accomodating(self, point: Point, absolute=False):
         xmin_bord, xmax_bord = self.x0 + self.border, self.x0 + self.dx - self.border
         ymin_bord, ymax_bord = self.y0 + self.border, self.y0 + self.dy - self.border
 
-        contained_within_x_border = xmin_bord <= point.x <= xmax_bord
-        contained_within_y_border = ymin_bord <= point.y <= ymax_bord
-
-        if contained_within_x_border and contained_within_y_border:
-            return 0, 0
-        
-        delta_x = delta_y = 0
-
-        if not contained_within_x_border:
-            delta_x = abs(min([point.x - xmin_bord, point.x - xmax_bord], key=abs))
-        
-        if not contained_within_y_border:
-        
-        return delta_x, delta_y
-    
-    def area_increase(self, point: Point):
-        # xmin_bord, xmax_bord = self.x0 + self.border, self.x0 + self.dx - self.border
-        # ymin_bord, ymax_bord = self.y0 + self.border, self.y0 + self.dy - self.border
-
-        # contained_within_x_border = xmin_bord + point.extent <= point.x <= xmax_bord - point.extent
-        # contained_within_y_border = ymin_bord + point.extent <= point.y <= ymax_bord - point.extent
+        contained_within_x_border = xmin_bord + point.extent <= point.x <= xmax_bord - point.extent
+        contained_within_y_border = ymin_bord + point.extent <= point.y <= ymax_bord - point.extent
 
         # if contained_within_x_border and contained_within_y_border:
-        #     return 0
+        #     return 0, 0
         
-        # delta_x = delta_y = 0
+        delta_x = delta_y = delta_x_min = delta_x_max = delta_y_min = delta_y_max = 0
 
-        # if not contained_within_x_border:
-        #     delta_x = abs(min([point.x - point.extent - xmin_bord, point.x + point.extent - xmax_bord], key=abs))
+        if not contained_within_x_border:
+            delta_x_min = min(point.x - point.extent - xmin_bord, 0)
+            delta_x_max = max(point.x + point.extent - xmax_bord, 0)
+            delta_x = delta_x_max - delta_x_min
+            # delta_x = min([point.x - point.extent - xmin_bord, point.x + point.extent - xmax_bord], key=abs)
         
-        # if not contained_within_y_border:
-        #     delta_y = abs(min([point.y - point.extent - ymin_bord, point.y + point.extent - ymax_bord], key=abs))
+        if not contained_within_y_border:
+            delta_y_min = min(point.y - point.extent - ymin_bord, 0)
+            delta_y_max = max(point.y + point.extent - ymax_bord, 0)
+            delta_y = delta_y_max - delta_y_min
+            # delta_y = min([point.y - point.extent - ymin_bord, point.y + point.extent - ymax_bord], key=abs)
+        
+        if absolute:
+            return delta_x, delta_y
+        
+        else:
+            return delta_x_min, delta_x_max, delta_y_min, delta_y_max
+    
+    def area_increase(self, point: Point):
+        delta_x, delta_y = self.deltaxy_accomodating(point=point, absolute=True)
 
-        delta_x, delta_y = self.deltaxy_accomodating(point=point)
+        delta_x = abs(delta_x)
+        delta_y = abs(delta_y)
 
         delta_area = delta_x * self.dy + delta_y * self.dx + delta_x * delta_y
 
@@ -152,7 +149,10 @@ class Rectangle:
 
         min_delta_area = delta_areas[min_idx]
 
-        if min_delta_area > (2 * cls.border)**2:
+        new_central_point = Point.find_central_remaining_point()
+        delta_area_new_rectangle = (2*(cls.border + new_central_point.extent))**2
+
+        if min_delta_area > delta_area_new_rectangle:
             # create a new rectangle around the central remaining point
             cls.create_remaining_central_rect()
 
@@ -165,9 +165,13 @@ class Rectangle:
     @classmethod
     def create_remaining_central_rect(cls):
         central_point = Point.find_central_remaining_point()
-        x0 = central_point.x - cls.border
-        y0 = central_point.y - cls.border
-        new_rect = Rectangle(x0, y0, 2*cls.border, 2*cls.border)
+        x0 = central_point.x - central_point.extent - cls.border
+        y0 = central_point.y - central_point.extent - cls.border
+        new_rect = Rectangle(
+            x0, y0, 
+            2*(cls.border + central_point.extent), 
+            2*(cls.border + central_point.extent)
+        )
 
         new_rect._add_point(central_point)
 
@@ -176,45 +180,16 @@ class Rectangle:
         Point.remaining_points.remove(point)
     
     def add_point(self, point: Point):
-        # xmin_bord, xmax_bord = self.x0 + self.border, self.x0 + self.dx - self.border
-        # ymin_bord, ymax_bord = self.y0 + self.border, self.y0 + self.dy - self.border
 
-        # contained_within_x_border = xmin_bord + point.extent <= point.x <= xmax_bord - point.extent
-        # contained_within_y_border = ymin_bord + point.extent <= point.y <= ymax_bord - point.extent
+        delta_x_min, delta_x_max, delta_y_min, delta_y_max = self.deltaxy_accomodating(point=point, absolute=False)
 
-        # if contained_within_x_border and contained_within_y_border:
-        #     self._add_point(point)
-        #     return None
-
-        # delta_x = delta_y = 0
-
-        # if not contained_within_x_border:
-        #     delta_x = min([point.x - point.extent - xmin_bord, point.x + point.extent - xmax_bord], key=abs)
-        #     if delta_x < 0:
-        #         self.x0 += delta_x
-        #     self.dx += abs(delta_x)
+        if delta_x_min:
+            self.x0 += delta_x_min
+        if delta_y_min:
+            self.y0 += delta_y_min
         
-        # if not contained_within_y_border:
-        #     delta_y = min([point.y - point.extent - ymin_bord, point.y + point.extent - ymax_bord], key=abs)
-        #     if delta_y < 0:
-        #         self.y0 += delta_y
-        #     self.dy += abs(delta_y)
-        
-        delta_x, delta_y = self.deltaxy_accomodating(point=point)
-
-        if not contained_within_x_border:
-            delta_x = min([point.x - xmin_bord, point.x - xmax_bord], key=abs)
-            if delta_x < 0:
-                self.x0 += delta_x
-            self.dx += abs(delta_x)
-        
-        if not contained_within_y_border:
-            delta_y = min([point.y - ymin_bord, point.y - ymax_bord], key=abs)
-            if delta_y < 0:
-                self.y0 += delta_y
-        
-        self.dx += abs(delta_x)
-            self.dy += abs(delta_y)
+        self.dx += delta_x_max - delta_x_min
+        self.dy += delta_y_max - delta_y_min
 
         self._add_point(point)
     
